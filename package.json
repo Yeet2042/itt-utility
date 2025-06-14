@@ -10,14 +10,17 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.1.10",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-fs": "^2.3.0",
     "@tauri-apps/plugin-opener": "^2",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "prettier-plugin-organize-imports": "^4.1.0",
     "prettier-plugin-sort-json": "^4.1.1",
     "prettier-plugin-tailwindcss": "^0.6.12",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.1.10"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
