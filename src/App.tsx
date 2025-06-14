@@ -1,18 +1,14 @@
 import "./App.css";
 import { invoke } from "@tauri-apps/api/core";
-import { useState, useRef, useEffect } from "react";
+import { basename } from "@tauri-apps/api/path";
+import { open } from "@tauri-apps/plugin-dialog";
+import { useState, useRef } from "react";
 
 export default function App() {
-  const [llm, setLlm] = useState<File | null>(null);
+  const [llmName, setLlmName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<FileList | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (llm) {
-      handleUploadModel(llm);
-    }
-  }, [llm]);
 
   const handleUpload = () => {
     fileInputRef.current?.click();
@@ -44,18 +40,59 @@ export default function App() {
     }
   };
 
-  const handleUploadModel = async (file: File) => {
-    await invoke("greet", { name: file.name });
+  const handleSelectLLM = async () => {
+    const selectedModel = await open({
+      multiple: false,
+      filters: [{ name: "LLM Model", extensions: ["gguf"] }],
+    });
 
-    // if (!file) return;
-    // const path = (file as any).path as string;
-    // if (!path) {
-    //   alert("Cannot get file path. Run in Tauri environment?");
-    //   return;
-    // }
-    // await invoke("load_model", { path })
-    //   .then(() => alert("Model loaded!"))
-    //   .catch((e) => alert(`Error: ${e}`));
+    if (typeof selectedModel === "string") {
+      const llmName = await basename(selectedModel);
+      setLlmName(llmName);
+
+      await invoke("load_model", { path: selectedModel }).then((msg) => {
+        console.log("Model loaded successfully with message:", msg);
+      });
+    }
+  };
+
+  const handleProcessFiles = async () => {
+    if (!files || !llmName) {
+      alert("Please select files and load a model.");
+      return;
+    }
+
+    setLoading(true);
+
+    for (const file of Array.from(files)) {
+      const base64 = await fileToBase64(file);
+
+      try {
+        const result = await invoke<string>("infer_from_base64", {
+          base64_data: base64,
+          filename: file.name,
+        });
+
+        console.log(`✅ [${file.name}] Result:`, result);
+      } catch (err) {
+        console.error(`❌ [${file.name}] Failed to process:`, err);
+      }
+    }
+
+    setLoading(false);
+    alert("All files processed!");
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   return (
@@ -68,36 +105,24 @@ export default function App() {
           PDF or IMAGE -&gt; TEXT with local OCR 🦙
         </p>
       </div>
-
       <section>
-        {!llm && (
+        {!llmName && (
           <div className="flex flex-col items-center gap-4">
             <button
-              onClick={handleUpload}
+              onClick={handleSelectLLM}
               className="px-16 py-4 font-semibold text-white bg-purple-500 rounded-md hover:bg-purple-600 cursor-pointer"
             >
               🤖 Upload LLM Model
             </button>
-            <input
-              type="file"
-              accept=".bin,.json"
-              ref={fileInputRef}
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files?.length) {
-                  setLlm(e.target.files[0]);
-                }
-              }}
-            />
           </div>
         )}
-        {llm && (
+        {llmName && (
           <div className="flex flex-col gap-2">
             <h2 className="font-semibold text-white">Selected LLM Model</h2>
             <div className="flex justify-between text-gray-300 text-sm font-mono p-4 border-2 border-gray-600 rounded-lg w-96">
-              <span>{llm.name}</span>
+              <span>{llmName}</span>
               <button
-                onClick={() => setLlm(null)}
+                onClick={() => setLlmName(null)}
                 className="text-xs text-red-500"
               >
                 Remove
@@ -106,9 +131,8 @@ export default function App() {
           </div>
         )}
       </section>
-
-      {llm && (
-        <section>
+      {llmName && (
+        <section className="flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-4">
             <button
               onClick={handleUpload}
@@ -157,14 +181,7 @@ export default function App() {
           {files && (
             <div className="flex flex-col items-center gap-4">
               <button
-                onClick={() => {
-                  setLoading(true);
-                  setTimeout(() => {
-                    setLoading(false);
-                    alert("Files processed successfully!");
-                    handleClear();
-                  }, 2000);
-                }}
+                onClick={handleProcessFiles}
                 className="px-4 py-2 font-semibold text-white bg-green-500 rounded-md hover:bg-green-600 cursor-pointer"
               >
                 {loading ? "Processing..." : "Process Files"}
