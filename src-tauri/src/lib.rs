@@ -9,7 +9,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, load_model])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+async fn load_model(path: String) -> Result<String, String> {
+    println!("Loading model from path: {}", path);
+    Ok(format!("Model path: {}", path))
 }

@@ -30,11 +30,6 @@
     ]
   },
   "identifier": "com.itt-utility.app",
-  "plugins": {
-    "fs": {
-      "scope": ["$APPDATA/models"]
-    }
-  },
   "productName": "itt-utility",
   "version": "0.1.0"
 }

@@ -1,7 +1,5 @@
 import "./App.css";
 import { invoke } from "@tauri-apps/api/core";
-import { BaseDirectory } from "@tauri-apps/api/path";
-import { mkdir, writeFile } from "@tauri-apps/plugin-fs";
 import { useState, useRef, useEffect } from "react";
 
 export default function App() {
@@ -23,14 +21,6 @@ export default function App() {
   const handleFiles = async (files: FileList) => {
     setFiles(files);
   };
-
-  const toBase64 = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-    });
 
   const handleClear = () => {
     setFiles(null);
@@ -55,57 +45,18 @@ export default function App() {
   };
 
   const handleUploadModel = async (file: File) => {
-    try {
-      // ใช้ FileReader แทน
-      const data = await new Promise<Uint8Array>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const arrayBuffer = reader.result as ArrayBuffer;
-          resolve(new Uint8Array(arrayBuffer));
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsArrayBuffer(file);
-      });
+    await invoke("greet", { name: file.name });
 
-      await mkdir("models", {
-        baseDir: BaseDirectory.AppLocalData,
-        recursive: true,
-      });
-
-      await writeFile(`models/${file.name}`, data, {
-        baseDir: BaseDirectory.AppLocalData,
-      });
-
-      console.log(`ไฟล์ ${file.name} ถูกบันทึกสำเร็จ`);
-    } catch (error) {
-      console.error("เกิดข้อผิดพลาดในการบันทึกไฟล์:", error);
-    }
+    // if (!file) return;
+    // const path = (file as any).path as string;
+    // if (!path) {
+    //   alert("Cannot get file path. Run in Tauri environment?");
+    //   return;
+    // }
+    // await invoke("load_model", { path })
+    //   .then(() => alert("Model loaded!"))
+    //   .catch((e) => alert(`Error: ${e}`));
   };
-
-  // const handleProcess = async () => {
-  //   setLoading(true);
-
-  //   if (!llm || !files) {
-  //     alert("Please upload a LLM model and files first.");
-  //     setLoading(false);
-  //     return;
-  //   }
-
-  //   try {
-  //     for (const file of Array.from(files)) {
-  //       const base64 = await toBase64(file);
-  //       const result = await invoke("process_file", {
-  //         base64,
-  //         filename: file.name,
-  //       });
-  //       console.log("LLM result:", result);
-  //     }
-  //     alert("🎉 Files processed successfully!");
-  //   } catch (e) {
-  //     alert("❌ Failed to process");
-  //   }
-  //   setLoading(false);
-  // };
 
   return (
     <main className="relative flex flex-col gap-8 mx-auto w-screen h-screen items-center justify-center bg-neutral-900">
