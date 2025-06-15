@@ -2,6 +2,7 @@ import "./App.css";
 import { invoke } from "@tauri-apps/api/core";
 import { basename } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useState, useRef } from "react";
 
 export default function App() {
@@ -43,7 +44,7 @@ export default function App() {
   const handleSelectLLM = async () => {
     const selectedModel = await open({
       multiple: false,
-      filters: [{ name: "LLM Model", extensions: ["gguf"] }],
+      filters: [{ name: "LLM Model", extensions: ["safetensors"] }],
     });
 
     if (typeof selectedModel === "string") {
@@ -69,7 +70,8 @@ export default function App() {
 
       try {
         const result = await invoke<string>("infer_from_base64", {
-          base64_data: base64,
+          base64Data: base64,
+          mimeType: file.type,
           filename: file.name,
         });
 
@@ -95,6 +97,14 @@ export default function App() {
     });
   };
 
+  const handleOpenLink = async () => {
+    try {
+      await openUrl("https://coff.ee/arpeggiokou");
+    } catch (error) {
+      console.error("Failed to open URL:", error);
+    }
+  };
+
   return (
     <main className="relative flex flex-col gap-8 mx-auto w-screen h-screen items-center justify-center bg-neutral-900">
       <div className="flex flex-col gap-2">
@@ -102,21 +112,11 @@ export default function App() {
           Welcome to ITT Utility
         </h1>
         <p className="text-lg text-gray-400">
-          PDF or IMAGE -&gt; TEXT with local OCR 🦙
+          PDF or IMAGE → TEXT with local OCR 👀
         </p>
       </div>
       <section>
-        {!llmName && (
-          <div className="flex flex-col items-center gap-4">
-            <button
-              onClick={handleSelectLLM}
-              className="px-16 py-4 font-semibold text-white bg-purple-500 rounded-md hover:bg-purple-600 cursor-pointer"
-            >
-              🤖 Upload LLM Model
-            </button>
-          </div>
-        )}
-        {llmName && (
+        {llmName ? (
           <div className="flex flex-col gap-2">
             <h2 className="font-semibold text-white">Selected LLM Model</h2>
             <div className="flex justify-between text-gray-300 text-sm font-mono p-4 border-2 border-gray-600 rounded-lg w-96">
@@ -128,6 +128,15 @@ export default function App() {
                 Remove
               </button>
             </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-4">
+            <button
+              onClick={handleSelectLLM}
+              className="px-16 py-4 font-semibold text-white bg-purple-500 rounded-md hover:bg-purple-600 cursor-pointer"
+            >
+              🤖 Select LLM
+            </button>
           </div>
         )}
       </section>
@@ -192,9 +201,14 @@ export default function App() {
       )}
       <span
         onClick={() => window.open("https://github.com/Yeet2042", "_blank")}
-        className="absolute bottom-4 text-xs text-gray-500 cursor-pointer"
+        className="flex items-center gap-2 bottom-4 text-xs text-gray-500 cursor-pointer"
       >
-        create by Yeet2042
+        <span>create by Yeet2042</span>
+        <img
+          onClick={handleOpenLink}
+          src="https://uc767cae190ff919d709b96ee420.previews.dropboxusercontent.com/p/thumb/ACo7IKTEExvt6_eOdhIVQFZlgAwj_gelar8PSsWC5zm_ctMsq3nBdZkPnazfMboch6UP7rjnBWRyT6lLL25RbUrlg9psnX0oqHs7naRty6XagoAoLuA70vfafzqafTeDrmZzGo3bQmil7UDBMZb4fy8kYjTai0ADrB9zI25MCnYIkYCRmCHXqherF3c_4dWP4Sl-nqNCgKuI2meK3147hbb6RJe1nfCfOdsOycYC18jztHtgtwTGKSMFUluZM2TuUQ01Hn_i31eCF0alJDIB38fZs8znPKz6v7l5iWKOARJ9EsKpDaA5G1ooYGC95eLDgzl2naYDNgcaGbNxCXrC7VJHCxkF_fCTzuNhbX2uWNRqWg/p.png"
+          className="w-24 h-full"
+        />
       </span>
     </main>
   );

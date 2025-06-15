@@ -4,13 +4,15 @@
   "identifier": "default",
   "permissions": [
     "core:default",
-    "opener:default",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-mkdir",
     "dialog:default"
   ],
-  "windows": [
-    "main"
-  ]
+  "remote": {
+    "urls": ["https://*"]
+  },
+  "windows": ["main"]
 }
