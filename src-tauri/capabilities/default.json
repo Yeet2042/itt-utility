@@ -8,9 +8,16 @@
     "opener:allow-default-urls",
     "fs:allow-read-file",
     "fs:allow-write-file",
+    "fs:allow-read-dir",
+    "fs:allow-copy-file",
     "fs:allow-mkdir",
     "dialog:default",
-    "store:default"
+    "store:default",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$TEMP/**" }]
+    }
   ],
   "remote": {
     "urls": ["https://*"]
