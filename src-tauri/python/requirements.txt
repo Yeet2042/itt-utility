@@ -1,1 +1,2 @@
 typhoon-ocr==0.3.8
+pypdf2==3.0.1
