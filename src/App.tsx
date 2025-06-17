@@ -3,9 +3,10 @@ import Button from "./components/button/Button";
 import Input, { InputStatus } from "./components/input/Input";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import KeyRoundedIcon from "@mui/icons-material/KeyRounded";
+import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { BaseDirectory, basename } from "@tauri-apps/api/path";
+import { basename } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { copyFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -43,8 +44,6 @@ export default function App() {
   const [processing, setProcessing] = useState(false);
   const [processProgress, setProcessProgress] =
     useState<ProcessProgress | null>(null);
-  const [processedFiles, setProcessedFiles] = useState<string[]>([]);
-  const [processedFileNames, setProcessedFileNames] = useState<string[]>([]);
 
   useEffect(() => {
     loadApiKey();
@@ -82,6 +81,13 @@ export default function App() {
       (f) => f.file_path === filePath,
     );
     return fileProgress?.status || "waiting";
+  };
+
+  const getCompletedFiles = () => {
+    if (!processProgress) return [];
+    return processProgress.files.filter(
+      (f) => f.status === "completed" && f.result,
+    );
   };
 
   const removeApiKey = async () => {
@@ -172,6 +178,7 @@ export default function App() {
     } else {
       setFilePaths([]);
       setFileNames([]);
+      setProcessProgress(null);
     }
   };
 
@@ -189,21 +196,12 @@ export default function App() {
     setProcessProgress(null);
 
     try {
-      const processRes: string = await invoke("process_files", {
+      await invoke("process_files", {
         apiKey,
         filePaths,
       });
 
-      const resultArray = processRes.split("\n\n---\n\n");
-
-      setProcessedFiles(resultArray);
-
-      resultArray.map(async (filePath) => {
-        const fileName = await basename(filePath);
-        setProcessedFileNames((prev) => [...prev, fileName]);
-      });
-
-      console.log("Files processed successfully:", processedFiles);
+      console.log("Processing completed successfully");
     } catch (error) {
       console.error("Failed to process files:", error);
       setApiKeyError("Failed to process files. Please try again.");
@@ -212,8 +210,9 @@ export default function App() {
     }
   };
 
-  const handleSaveAllFiles = async () => {
-    if (processedFiles.length === 0) {
+  const handleSaveAllCompletedFiles = async () => {
+    const completedFiles = getCompletedFiles();
+    if (completedFiles.length === 0) {
       return;
     }
 
@@ -227,10 +226,12 @@ export default function App() {
       if (!saveDir) {
         console.error("No directory selected for saving files.");
         return;
-      } else {
-        for (const filePath of processedFiles) {
-          const fileName = await basename(filePath);
-          await copyFile(filePath, `${saveDir}/${fileName}`);
+      }
+
+      for (const fileProgress of completedFiles) {
+        if (fileProgress.result) {
+          const fileName = await basename(fileProgress.result);
+          await copyFile(fileProgress.result, `${saveDir}/${fileName}`);
         }
       }
 
@@ -240,9 +241,18 @@ export default function App() {
     }
   };
 
-  const handleSaveFile = async (fileName: string) => {
-    if (!fileName) {
-      console.error("No file name provided for saving.");
+  const handleSaveFile = async (filePath: string) => {
+    if (!processProgress) return;
+
+    const fileProgress = processProgress.files.find(
+      (f) => f.file_path === filePath,
+    );
+    if (
+      !fileProgress ||
+      fileProgress.status !== "completed" ||
+      !fileProgress.result
+    ) {
+      console.error("File not completed or result not available.");
       return;
     }
 
@@ -258,19 +268,20 @@ export default function App() {
         return;
       }
 
-      const filePath = processedFiles.find((file) => file.includes(fileName));
-
-      if (!filePath) {
-        console.error("No file found for the given file name.");
-        return;
-      }
-
-      await copyFile(filePath, `${saveDir}/${fileName}`);
+      const fileName = await basename(fileProgress.result);
+      await copyFile(fileProgress.result, `${saveDir}/${fileName}`);
 
       console.log(`File ${fileName} saved successfully.`);
     } catch (error) {
       console.error("Failed to save file:", error);
     }
+  };
+
+  const handleResetAll = () => {
+    setFilePaths([]);
+    setFileNames([]);
+    setProcessing(false);
+    setProcessProgress(null);
   };
 
   const handleOpenTyphoonLink = async () => {
@@ -365,8 +376,11 @@ export default function App() {
                 )}
               </div>
               <div className="flex flex-col gap-4 border-2 border-gray-500 rounded-2xl p-4 w-full max-h-[200px] overflow-scroll">
-                {fileNames.map((fileName, index) => {
-                  const fileStatus = getFileStatus(filePaths[index]);
+                {filePaths.map((filePath, index) => {
+                  const fileStatus = getFileStatus(filePath);
+                  const fileName = fileNames[index];
+                  const canSave = fileStatus === "completed";
+
                   return (
                     <div
                       key={index}
@@ -374,92 +388,100 @@ export default function App() {
                     >
                       <div className="flex items-center gap-2">
                         {fileStatus === "processing" && (
-                          <span className="text-yellow-500 animate-pulse text-sm">
-                            Processing
-                          </span>
+                          <LoadingIcons.TailSpin className="text-yellow-500 h-4 w-4" />
                         )}
                         {fileStatus === "completed" && (
                           <span className="text-green-500 text-sm">
-                            Completed
+                            ✓ Completed
                           </span>
                         )}
                         {fileStatus === "error" && (
-                          <span className="text-red-500 text-sm">Error</span>
+                          <span className="text-red-500 text-sm">✗ Error</span>
+                        )}
+                        {fileStatus === "waiting" && (
+                          <span className="text-gray-500 text-sm">Waiting</span>
                         )}
                         <div className="flex items-center gap-2">
                           <span className="text-gray-300">{fileName}</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          if (processing) {
-                            return;
-                          } else {
-                            setFilePaths((prev) =>
-                              prev.filter((_, i) => i !== index),
-                            );
-                            setFileNames((prev) =>
-                              prev.filter((_, i) => i !== index),
-                            );
-                          }
-                        }}
-                        className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer"
-                      >
-                        remove
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {canSave && (
+                          <button
+                            onClick={() => handleSaveFile(filePath)}
+                            className="flex items-center gap-1 text-sm text-purple-400 hover:text-purple-200 transition-colors cursor-pointer"
+                          >
+                            <SaveRoundedIcon className="h-4 w-4" />
+                            save
+                          </button>
+                        )}
+                        {!processing && (
+                          <button
+                            onClick={() => {
+                              setFilePaths((prev) =>
+                                prev.filter((_, i) => i !== index),
+                              );
+                              setFileNames((prev) =>
+                                prev.filter((_, i) => i !== index),
+                              );
+                            }}
+                            className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer"
+                          >
+                            remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
-              <Button
-                startIcon={
-                  processing && (
-                    <LoadingIcons.TailSpin className="text-gray-400 h-4 w-4" />
-                  )
-                }
-                color="base"
-                onClick={handleProcessFiles}
-              >
-                Process OCR
-              </Button>
+              <div className="flex items-center gap-4">
+                <Button
+                  startIcon={
+                    processing && (
+                      <LoadingIcons.TailSpin className="text-gray-400 h-4 w-4" />
+                    )
+                  }
+                  color="base"
+                  onClick={handleProcessFiles}
+                  disabled={processing}
+                >
+                  {processing ? "Processing..." : "Process OCR"}
+                </Button>
+                {getCompletedFiles().length > 0 && (
+                  <button
+                    onClick={handleSaveAllCompletedFiles}
+                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer"
+                  >
+                    Save All ({getCompletedFiles().length})
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
-          {processedFiles.length > 0 && (
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
-                  <h2>Processed Files</h2>
-                </div>
-                <button
-                  onClick={handleSaveAllFiles}
-                  className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer"
-                >
-                  Save all
-                </button>
+          {processProgress && processProgress.completed > 0 && (
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${(processProgress.completed / processProgress.total) * 100}%`,
+                  }}
+                ></div>
               </div>
-              <div className="flex flex-col gap-4 border-2 border-gray-500 rounded-2xl p-4 w-full max-h-[200px] overflow-scroll">
-                {processedFileNames.map((fileName, index) => {
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-300">{fileName}</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleSaveFile(fileName)}
-                        className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer"
-                      >
-                        save
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              <span className="text-sm text-gray-400">
+                {processProgress.completed} of {processProgress.total} files
+                completed
+              </span>
+              <span className="text-xs text-gray-500">
+                {processProgress.current_task}
+              </span>
+              <button onClick={handleResetAll}>
+                <span className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer">
+                  Reset All
+                </span>
+              </button>
             </div>
           )}
         </section>

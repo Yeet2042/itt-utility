@@ -173,21 +173,49 @@ async fn process_files(
 fn typhoon_ocr(api_key: &str, file_path: &str) -> PyResult<String> {
     Python::with_gil(|py| {
         let os = py.import("os")?;
+        let typhoon_ocr = py.import("typhoon_ocr")?;
 
         let environ = os.getattr("environ")?;
         environ.set_item("TYPHOON_OCR_API_KEY", api_key)?;
 
-        let typhoon_ocr = py.import("typhoon_ocr")?;
-
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("pdf_or_image_path", file_path)?;
-        kwargs.set_item("task_type", "default")?;
-
         let ocr_document = typhoon_ocr.getattr("ocr_document")?;
 
-        let result = ocr_document.call((), Some(&kwargs))?;
+        let path_lower = file_path.to_lowercase();
+        let is_pdf = path_lower.ends_with(".pdf");
 
-        result.extract::<String>()
+        if is_pdf {
+            let builtins = py.import("builtins")?;
+            let open_fn = builtins.getattr("open")?;
+            let file = open_fn.call1((file_path, "rb"))?;
+
+            let pypdf2: Bound<'_, PyModule> = py.import("PyPDF2")?;
+            let reader = pypdf2.getattr("PdfReader")?.call1((file,))?;
+            let pages = reader.getattr("pages")?;
+            let page_count = pages.getattr("__len__")?.call0()?.extract::<usize>()?;
+
+            let mut all_text = String::new();
+            for page_num in 1..=page_count {
+                let kwargs = PyDict::new(py);
+                kwargs.set_item("pdf_or_image_path", file_path)?;
+                kwargs.set_item("task_type", "default")?;
+                kwargs.set_item("page_num", page_num)?;
+
+                let result = ocr_document.call((), Some(&kwargs))?;
+                let text = result.extract::<String>()?;
+                all_text.push_str(&format!("{}\n", text));
+
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+
+            Ok(all_text)
+        } else {
+            let kwargs = PyDict::new(py);
+            kwargs.set_item("pdf_or_image_path", file_path)?;
+            kwargs.set_item("task_type", "default")?;
+
+            let result = ocr_document.call((), Some(&kwargs))?;
+            result.extract::<String>()
+        }
     })
 }
 
