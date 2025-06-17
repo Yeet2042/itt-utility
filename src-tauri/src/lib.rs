@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 use tokio::time::interval;
 
@@ -171,11 +171,59 @@ async fn process_files(
 }
 
 fn typhoon_ocr(api_key: &str, file_path: &str) -> PyResult<String> {
+    let poppler_path = if cfg!(target_os = "macos") {
+        "/opt/homebrew/bin"
+    } else if cfg!(target_os = "linux") {
+        "/usr/bin"
+    } else {
+        "C:\\Program Files\\poppler\\bin"
+    };
+
+    let separator = if cfg!(target_os = "windows") {
+        ";"
+    } else {
+        ":"
+    };
+    let new_path = format!(
+        "{}{}{}",
+        poppler_path,
+        separator,
+        std::env::var("PATH").unwrap_or_default()
+    );
+    std::env::set_var("PATH", &new_path);
+
     Python::with_gil(|py| {
         let os = py.import("os")?;
+        let sys = py.import("sys")?;
         let typhoon_ocr = py.import("typhoon_ocr")?;
-
         let environ = os.getattr("environ")?;
+
+        environ.set_item("TYPHOON_OCR_API_KEY", api_key)?;
+
+        // Get the bundled venv path
+        let app_dir = std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+
+        let venv_path = if cfg!(target_os = "macos") {
+            app_dir.join("../Resources/.venv")
+        } else if cfg!(target_os = "windows") {
+            app_dir.join(".venv")
+        } else {
+            app_dir.join(".venv")
+        };
+
+        let site_packages = if cfg!(target_os = "windows") {
+            venv_path.join("Lib/site-packages")
+        } else {
+            venv_path.join("lib/python3.9/site-packages")
+        };
+
+        let path = sys.getattr("path")?;
+        path.call_method1("insert", (0, site_packages.to_string_lossy().as_ref()))?;
+
         environ.set_item("TYPHOON_OCR_API_KEY", api_key)?;
 
         let ocr_document = typhoon_ocr.getattr("ocr_document")?;
@@ -219,9 +267,28 @@ fn typhoon_ocr(api_key: &str, file_path: &str) -> PyResult<String> {
     })
 }
 
+// #[tauri::command]
+// fn setup_application() -> Result<(), String> {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let resource_dir = app.path().resource_dir()?;
+            let venv_path = resource_dir.join(".venv");
+
+            if venv_path.exists() {
+                let site_packages = if cfg!(target_os = "windows") {
+                    venv_path.join("Lib/site-packages")
+                } else {
+                    venv_path.join("lib/python3.9/site-packages")
+                };
+
+                std::env::set_var("PYTHONPATH", site_packages.to_string_lossy().as_ref());
+            }
+
+            Ok(())
+        })
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())

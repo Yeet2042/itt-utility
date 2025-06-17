@@ -196,10 +196,16 @@ export default function App() {
     setProcessProgress(null);
 
     try {
-      await invoke("process_files", {
+      const res = await invoke("process_files", {
         apiKey,
         filePaths,
       });
+
+      if (typeof res === "string") {
+        console.error("Error processing files:", res);
+        setProcessing(false);
+        return;
+      }
 
       console.log("Processing completed successfully");
     } catch (error) {
@@ -492,7 +498,7 @@ export default function App() {
           <span>create by Yeet2042</span>
           <img
             onClick={handleOpenBuyCoffeeLink}
-            src="https://uc767cae190ff919d709b96ee420.previews.dropboxusercontent.com/p/thumb/ACo7IKTEExvt6_eOdhIVQFZlgAwj_gelar8PSsWC5zm_ctMsq3nBdZkPnazfMboch6UP7rjnBWRyT6lLL25RbUrlg9psnX0oqHs7naRty6XagoAoLuA70vfafzqafTeDrmZzGo3bQmil7UDBMZb4fy8kYjTai0ADrB9zI25MCnYIkYCRmCHXqherF3c_4dWP4Sl-nqNCgKuI2meK3147hbb6RJe1nfCfOdsOycYC18jztHtgtwTGKSMFUluZM2TuUQ01Hn_i31eCF0alJDIB38fZs8znPKz6v7l5iWKOARJ9EsKpDaA5G1ooYGC95eLDgzl2naYDNgcaGbNxCXrC7VJHCxkF_fCTzuNhbX2uWNRqWg/p.png"
+            src="/coffee.png"
             className="w-24 h-full"
           />
         </span>
