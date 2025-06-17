@@ -45,6 +45,8 @@ export default function App() {
   const [processProgress, setProcessProgress] =
     useState<ProcessProgress | null>(null);
 
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
   useEffect(() => {
     loadApiKey();
 
@@ -97,6 +99,7 @@ export default function App() {
       }
     } catch (error) {
       console.error("Failed to remove API key:", error);
+      setGlobalError("Failed to remove API key: " + error);
     }
   };
 
@@ -112,6 +115,7 @@ export default function App() {
       }
     } catch (error) {
       console.error("Failed to load API key:", error);
+      setGlobalError("Failed to load API key: " + error);
     }
   };
 
@@ -169,6 +173,7 @@ export default function App() {
       }
     } catch (error) {
       console.error("Failed to open file dialog:", error);
+      setGlobalError("Failed to open file dialog: " + error);
     }
   };
 
@@ -203,6 +208,7 @@ export default function App() {
 
       if (typeof res === "string") {
         console.error("Error processing files:", res);
+        setGlobalError("Error processing files: " + res);
         setProcessing(false);
         return;
       }
@@ -210,6 +216,7 @@ export default function App() {
       console.log("Processing completed successfully");
     } catch (error) {
       console.error("Failed to process files:", error);
+      setGlobalError("Failed to process files: " + error);
       setApiKeyError("Failed to process files. Please try again.");
     } finally {
       setProcessing(false);
@@ -231,6 +238,7 @@ export default function App() {
 
       if (!saveDir) {
         console.error("No directory selected for saving files.");
+        setGlobalError("No directory selected for saving files.");
         return;
       }
 
@@ -244,6 +252,7 @@ export default function App() {
       console.log("Files saved successfully.");
     } catch (error) {
       console.error("Failed to save files:", error);
+      setGlobalError("Failed to save files: " + error);
     }
   };
 
@@ -259,6 +268,7 @@ export default function App() {
       !fileProgress.result
     ) {
       console.error("File not completed or result not available.");
+      setGlobalError("File not completed or result not available.");
       return;
     }
 
@@ -271,6 +281,7 @@ export default function App() {
 
       if (!saveDir) {
         console.error("No directory selected for saving the file.");
+        setGlobalError("No directory selected for saving the file.");
         return;
       }
 
@@ -280,6 +291,7 @@ export default function App() {
       console.log(`File ${fileName} saved successfully.`);
     } catch (error) {
       console.error("Failed to save file:", error);
+      setGlobalError("Failed to save file: " + error);
     }
   };
 
@@ -297,6 +309,7 @@ export default function App() {
       );
     } catch (error) {
       console.error("Failed to open URL:", error);
+      setGlobalError("Failed to open URL: " + error);
     }
   };
 
@@ -305,6 +318,7 @@ export default function App() {
       await openUrl("https://coff.ee/arpeggiokou");
     } catch (error) {
       console.error("Failed to open URL:", error);
+      setGlobalError("Failed to open URL: " + error);
     }
   };
 
@@ -441,6 +455,7 @@ export default function App() {
                   );
                 })}
               </div>
+              <p className="text-red-600">{globalError}</p>
               <div className="flex items-center gap-4">
                 <Button
                   startIcon={
